@@ -32,7 +32,11 @@ var windowHalfX = window.innerWidth / 2;
 var windowHalfY = window.innerHeight / 2;
 var jsonModel = {};
 
-$.ajax( 'tests/b.json' ).complete( function( ro ) {
+
+var tests = [ 'tests/a.json', 'tests/b.json', 'tests/c.json', 'tests/d.json', 'tests/e.json', 'tests/f.json' ];
+var randomModel = tests[Math.floor(Math.random()*tests.length)];
+
+$.ajax( randomModel ).complete( function( ro ) {
 	
 	if ( ro.status != 200 )
 	{
