@@ -1,0 +1,310 @@
+<html lang="en">
+<head>
+
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+<title>Chisels &amp; Bits Model Viewer</title>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0"/>
+<style type="text/css">
+	
+	html,body { margin:0px; }
+	p { margin: 30px; }
+	
+</style>
+
+</head>
+<body>
+
+<script src="js/jquery.js"></script>
+<script src="js/three.js"></script>
+<script src="js/trackballcontrols.js"></script>
+<script src="js/detector.js"></script>
+
+<script>
+
+var container;
+
+var camera, scene, renderer;
+
+var mouseX = 0, mouseY = 0;
+
+var windowHalfX = window.innerWidth / 2;
+var windowHalfY = window.innerHeight / 2;
+var jsonModel = {};
+
+$.ajax( 'tests/b.json' ).complete( function( ro ) {
+	
+	if ( ro.status != 200 )
+	{
+		document.body.innerHTML = '<p>Unable to load the model specified.</p>';
+	}
+	else
+	{
+		try
+		{
+			jsonModel = JSON.parse( ro.responseText );
+			if ( jsonModel == null || jsonModel == false ) throw {};
+		}
+		catch( e )
+		{
+			document.body.innerHTML = '<p>Model was not valid json.</p>';
+			return;
+		}
+		
+		init();
+		
+		addModel( jsonModel );
+		animate();
+	}
+} );
+
+var textureMaps = {};
+var textureSource = {};
+function addModel( jsonModel )
+{
+	console.log(jsonModel);
+	
+	textureSource = jsonModel.textures;
+	
+	var modelsByMaterial = {};
+	var models = [];
+	
+	for ( var x = 0; x < jsonModel.model.length; x++ )
+	{
+		var face = jsonModel.model[x];
+		var color = face.v[0].split(' ').pop();
+		var material = face.t+";"+color;
+		
+		if ( ! modelsByMaterial[ material ] )
+		{
+			var list = [];
+			list.textureName = face.t;
+			list.color = parseInt(color,16);
+			models.push( list );
+			modelsByMaterial[ material ] = list;
+		}
+		
+		modelsByMaterial[ material ].push( face );
+	}
+	
+	var meshes = [];
+	
+	for ( var x = 0; x < models.length; x++ )
+	{
+		var model = models[x];
+		
+		var geometry = new THREE.Geometry();
+		geometry.faceVertexUvs[0] = [];
+		
+		console.log( "Generating Model: " + model.color + " - " + model.textureName );
+		
+		for ( var l = 0; l < model.length; l++ )
+		{
+			var face = model[l].v;
+			
+			var index = geometry.vertices.length;
+			
+			var p1 = fromHex( face[0].split( ' ' ) );
+			var p2 = fromHex( face[1].split( ' ' ) );
+			var p3 = fromHex( face[2].split( ' ' ) );
+			var p4 = fromHex( face[3].split( ' ' ) );
+			
+			var uvA = [];
+			var uvB = [];
+			
+			geometry.vertices.push(
+				asVert( p1[0], p1[1], p1[2] ),
+				asVert( p2[0], p2[1], p2[2] ),
+				asVert( p3[0], p3[1], p3[2] ),
+				asVert( p4[0], p4[1], p4[2] )
+			);
+			
+			uvA.push(
+				asUV( p1[3], p1[4] ),
+				asUV( p2[3], p2[4] ),
+				asUV( p3[3], p3[4] )
+			);
+			
+			uvB.push(
+				asUV( p1[3], p1[4] ),
+				asUV( p3[3], p3[4] ),
+				asUV( p4[3], p4[4] )
+			);
+			
+			geometry.faceVertexUvs[0].push( uvA );
+			geometry.faceVertexUvs[0].push( uvB );
+			
+			geometry.faces.push( new THREE.Face3( index, index + 1, index + 2 ) );
+			geometry.faces.push( new THREE.Face3( index, index + 2, index + 3 ) );
+		}
+		
+		geometry.computeFaceNormals();
+		geometry.computeBoundingSphere();
+		
+		var material = new THREE.MeshLambertMaterial( { transparent : true, map: getTexture( model.textureName ), color: model.color & 0xffffff } );
+		var mesh = new THREE.Mesh( geometry, material );
+		
+		meshes.push( mesh );
+	}
+	
+	for ( var x = 0; x < meshes.length; ++x )
+	{
+		var mesh = meshes[x];
+		
+		mesh.position.set( -(maxX - minX) / 2, -(maxY - minY) / 2, -(maxZ - minZ) / 2 );
+		scene.add( mesh );
+	}
+	
+}
+
+function fromHex( arr )
+{
+	for ( var x = 0; x < arr.length; ++x )
+	{
+		arr[x] = parseInt( arr[x], 16 );
+	}
+	
+	return arr;
+}
+
+var minX=1000, minY=1000, minZ=1000;
+var maxX=-1000, maxY=-1000, maxZ=-1000;
+
+function asVert( x, y, z )
+{
+	x /= 16;
+	y /= 16;
+	z /= 16;
+	
+	if ( minX > x ) minX = x;
+	if ( maxX < x ) maxX = x;
+	
+	if ( minY > y ) minY = y;
+	if ( maxY < y ) maxY = y;
+	
+	if ( minZ > z ) minZ = z;
+	if ( maxZ < z ) maxZ = z;
+	
+	return new THREE.Vector3(x,y,z);
+}
+
+function asUV( u, v )
+{
+	return new THREE.Vector2(u/16,v/16);
+}
+
+function getTexture( id )
+{
+	if ( ! textureMaps[ id ] )
+	{
+		console.log( "Loading Texture: " + id );
+		textureMaps[ id ] = loadTexture( textureSource[ id ] );
+	}
+	
+	return textureMaps[ id ];
+}
+
+function loadTexture( dataURL )
+{
+	var image = document.createElement( 'img' );
+	var texture = new THREE.Texture( image );
+	image.onload = function()  { texture.needsUpdate = true; };
+	image.src = dataURL;
+	texture.magFilter = THREE.NearestFilter;
+	texture.minFilter = THREE.NearestFilter;
+	return texture;
+}
+
+var light1;
+
+function init() {
+
+	container = document.createElement( 'div' );
+	document.body.appendChild( container );
+
+	camera = new THREE.PerspectiveCamera( 45, window.innerWidth / window.innerHeight, 1, 2000 );
+	camera.position.z = 4;
+	camera.position.y = 4;
+	camera.position.x = 4;
+
+	controls = new THREE.TrackballControls( camera );
+	controls.rotateSpeed = 5.0;
+	controls.zoomSpeed = 5;
+	controls.panSpeed = 2;
+	controls.noZoom = false;
+	controls.noPan = false;
+	controls.staticMoving = true;
+	controls.dynamicDampingFactor = 0.3;
+	
+	scene = new THREE.Scene();
+	var ambient = new THREE.AmbientLight( 0xb0b0b0 );
+	scene.add( ambient );
+	
+	light1 = new THREE.PointLight( 0xffffff, 0.5, 50 );
+	scene.add( light1 );
+	
+	renderer = new THREE.WebGLRenderer();
+	renderer.setSize( window.innerWidth, window.innerHeight );
+	container.appendChild( renderer.domElement );
+
+	document.addEventListener( 'mousemove', onDocumentMouseMove, false );
+	window.addEventListener( 'resize', onWindowResize, false );
+
+}
+
+function onWindowResize()
+{
+
+	windowHalfX = window.innerWidth / 2;
+	windowHalfY = window.innerHeight / 2;
+
+	camera.aspect = window.innerWidth / window.innerHeight;
+	camera.updateProjectionMatrix();
+
+	renderer.setSize( window.innerWidth, window.innerHeight );
+
+}
+
+function onDocumentMouseMove( event )
+{
+	
+	mouseX = ( event.clientX - windowHalfX ) / 2;
+	mouseY = ( event.clientY - windowHalfY ) / 2;
+	
+}
+
+function animate()
+{
+	
+	requestAnimationFrame( animate );
+	render();
+	
+}
+
+function render()
+{
+	var up = new THREE.Vector3();
+	up.copy( camera.up );
+	
+	var forward = new THREE.Vector3();
+	forward.copy( camera.getWorldDirection() );
+	forward.normalize();
+	
+	var left = new THREE.Vector3();
+	left.crossVectors( up, forward );
+	
+	var lPos = [
+		camera.position.x + up.x * 10 + left.x * 10,
+		camera.position.y + up.y * 10 + left.y * 10,
+		camera.position.z + up.z * 10 + left.z * 10
+	];
+	
+	light1.position.set( lPos[0], lPos[1], lPos[2] );
+	
+	controls.update();
+	camera.lookAt( scene.position );
+	renderer.render( scene, camera );
+	
+}
+
+</script></body></html>
