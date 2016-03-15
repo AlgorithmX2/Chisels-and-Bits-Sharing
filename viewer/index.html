@@ -32,8 +32,7 @@ var windowHalfX = window.innerWidth / 2;
 var windowHalfY = window.innerHeight / 2;
 var jsonModel = {};
 
-
-var tests = [ 'tests/a.json', 'tests/b.json' ];
+var tests = window.location.hash ? [ 'tests/' + window.location.hash.substr(1) ] : [ 'tests/a.json', 'tests/b.json' ];
 var randomModel = tests[Math.floor(Math.random()*tests.length)];
 
 $.ajax( randomModel ).complete( function( ro ) {
