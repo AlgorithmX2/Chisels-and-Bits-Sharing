@@ -36,6 +36,7 @@
       xhr = new XMLHttpRequest;
       xhr.open("GET", url, true);
       xhr.responseType = "arraybuffer";
+      xhr.setRequestHeader('Accept','image/*');
       xhr.onload = function() {
         var data, png;
         data = new Uint8Array(xhr.response || xhr.mozResponseArrayBuffer);
