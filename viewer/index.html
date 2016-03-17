@@ -121,7 +121,13 @@ function imageDecode( pixelbytes )
 if ( randomModel.indexOf( ".png" ) != -1 )
 {
 	if ( randomModel.indexOf( 'http://' ) == -1 )
-		randomModel = 'http://i.imgur.com/' + randomModel;
+	{
+		if (location.protocol === 'https:') {
+			randomModel = 'https://i.imgur.com/' + randomModel;
+		} else {
+			randomModel = 'http://i.imgur.com/' + randomModel;
+		}
+	}
 	
 	PNG.load( randomModel, null, function( png ) {
 		
