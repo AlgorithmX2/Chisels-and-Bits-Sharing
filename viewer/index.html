@@ -20,7 +20,9 @@
 <script src="js/trackballcontrols.js"></script>
 <script src="js/detector.js"></script>
 <script src="js/base64.js"></script>
+<script src="js/zlib.js"></script>
 <script src="js/gzip.js"></script>
+<script src="js/png.js"></script>
 
 <script>
 
@@ -34,7 +36,7 @@ var windowHalfX = window.innerWidth / 2;
 var windowHalfY = window.innerHeight / 2;
 var jsonModel = {};
 
-var tests = window.location.hash ? [ 'tests/' + window.location.hash.substr(1) ] : [ 'tests/1.cbs', 'tests/2.cbs', 'tests/3.cbs' ];
+var tests = window.location.hash ? [ window.location.hash.substr(1) ] : [ 'http://i.imgur.com/XQA6Xvx.png', 'http://i.imgur.com/4ma320I.png', 'http://i.imgur.com/daQYJI3.png' ];
 var randomModel = tests[Math.floor(Math.random()*tests.length)];
 
 function Utf8ArrayToStr(array) {
@@ -71,63 +73,151 @@ function Utf8ArrayToStr(array) {
     return out;
 }
 
-$.ajax( randomModel ).complete( function( ro ) {
+function readByte( readerState )
+{
+	// readerState: pixelbytes, index, c
+	do
+	{
+		var currentValue = readerState[0][ readerState[1] + readerState[2] ];
+		var alpha = readerState[0][ readerState[1] + 3 ];	
+		
+		readerState[2]++;
+		
+		if ( alpha != 0 )
+		{
+			readerState[1] += 4;
+			readerState[2] = 0;
+			continue;
+		}
+		else if ( readerState[2] >= 3 )
+		{
+			readerState[1] += 4;
+			readerState[2] = 0;
+		}
+		
+		break;
+	}
+	while ( true );
 	
-	if ( ro.status != 200 )
-	{
-		document.body.innerHTML = '<p>Unable to load the model specified.</p>';
-	}
-	else
-	{
-		try
-		{
-			var gzipData = decode64( ro.responseText );
-		}
-		catch( e )
-		{
-			console.log(e);
-			document.body.innerHTML = '<p>Model was not valid base64.</p>';
-			return;
-		}
-		
-		try
-		{
-			var binaryInflated = pako.inflate( gzipData );
-			var jsonData = Utf8ArrayToStr(binaryInflated);
-		}
-		catch( e )
-		{
-			console.log(e);
-			document.body.innerHTML = '<p>Model was not gziped.</p>';
-			return;
-		}
+	return currentValue;
+}
 
+function imageDecode( pixelbytes )
+{
+	var readerState = [ pixelbytes, 0, 0 ];
+	
+	var size = readByte( readerState ) << 24;
+	size |= readByte( readerState ) << 16;
+	size |= readByte( readerState ) << 8;
+	size |= readByte( readerState );
+	
+	var out = new Uint8Array(size);
+	for ( var x = 0; x < size; ++x )
+		out[x] = readByte( readerState );
+	
+	console.log( pixelbytes );
+	console.log( out );
+	return out;
+}
+
+if ( randomModel.indexOf( ".png" ) != -1 )
+{
+	if ( randomModel.indexOf( 'http://' ) == -1 )
+		randomModel = 'http://i.imgur.com/' + randomModel;
+	
+	PNG.load( randomModel, null, function( png ) {
+		
+		var gzipData = imageDecode( png.decodePixels() );
 		try
 		{
-			jsonModel = JSON.parse( jsonData );
-			if ( jsonModel == null || jsonModel == false ) throw {};
 		}
 		catch( e )
 		{
-			console.log(jsonData);
 			console.log(e);
-			document.body.innerHTML = '<p>Model was not valid json.</p>';
+			document.body.innerHTML = '<p>Model was not validly encoded into image.</p>';
 			return;
 		}
 		
-		try
+		deflateAndLoad(gzipData);
+		
+	} );
+}
+else
+{
+	$.ajax( randomModel, { crossDomain: true, dataType: "binary", processData: false } ).complete( function( ro ) {
+		
+		if ( ro.status != 200 )
 		{
-			init();
+			document.body.innerHTML = '<p>Unable to load the model specified.</p>';
+		}
+		else
+		{
+			try
+			{
+				var gzipData = decode64( ro.responseText );
+			}
+			catch( e )
+			{
+				try
+				{
+					var data, png;
+					data = new Uint8Array(ro.response || ro.mozResponseArrayBuffer);
+					var png = new PNG(data);
+					
+					var gzipData = imageDecode( png.decodePixels() );
+				}
+				catch( e )
+				{
+					console.log(e);
+					document.body.innerHTML = '<p>Model was not valid base64.</p>';
+					return;
+				}
+			}
 			
-			addModel( jsonModel );
-			animate();
+			deflateAndLoad(gzipData);
 		}
-		catch( e ) 
-		{
-			console.log(e);
-		}
+	} );
+}
+
+function deflateAndLoad( gzipData )
+{
+	try
+	{
+		var binaryInflated = pako.inflate( gzipData );
+		var jsonData = Utf8ArrayToStr(binaryInflated);
 	}
-} );
+	catch( e )
+	{
+		console.log(e);
+		document.body.innerHTML = '<p>Model was not gziped.</p>';
+		return;
+	}
+
+	try
+	{
+		jsonModel = JSON.parse( jsonData );
+		if ( jsonModel == null || jsonModel == false ) throw {};
+	}
+	catch( e )
+	{
+		console.log(jsonData);
+		console.log(e);
+		document.body.innerHTML = '<p>Model was not valid json.</p>';
+		return;
+	}
+	
+	try
+	{
+		init();
+		
+		addModel( jsonModel );
+		animate();
+	}
+	catch( e ) 
+	{
+		console.log(e);
+	}
+}
 
 function adjustGeometry( geometry )
 {
