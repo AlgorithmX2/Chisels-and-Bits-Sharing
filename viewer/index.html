@@ -34,7 +34,7 @@ var windowHalfX = window.innerWidth / 2;
 var windowHalfY = window.innerHeight / 2;
 var jsonModel = {};
 
-var tests = window.location.hash ? [ 'tests/' + window.location.hash.substr(1) ] : [ 'tests/a.cbs', 'tests/b.cbs', 'tests/c.cbs' , 'tests/d.cbs' ];
+var tests = window.location.hash ? [ 'tests/' + window.location.hash.substr(1) ] : [ 'tests/1.cbs', 'tests/2.cbs', 'tests/3.cbs' ];
 var randomModel = tests[Math.floor(Math.random()*tests.length)];
 
 function Utf8ArrayToStr(array) {
@@ -115,10 +115,17 @@ $.ajax( randomModel ).complete( function( ro ) {
 			return;
 		}
 		
-		init();
-		
-		addModel( jsonModel );
-		animate();
+		try
+		{
+			init();
+			
+			addModel( jsonModel );
+			animate();
+		}
+		catch( e ) 
+		{
+			console.log(e);
+		}
 	}
 } );
 
@@ -146,12 +153,31 @@ function adjustGeometry( geometry )
 	return c;
 }
 
+function snagPos( data, index, size )
+{
+	var out = data.substr( index[0], size );
+	index[0]+=size;
+	
+	return parseInt( out, 36 );
+}
+
+function readVertData( data, index, x,y,z )
+{
+	var out = [ 0, 0, 0, 0, 0 ]; // def
+
+	out[0] = snagPos( data, index, x );
+	out[1] = snagPos( data, index, y );
+	out[2] = snagPos( data, index, z );
+	out[3] = snagPos( data, index, 1 );	
+	out[4] = snagPos( data, index, 1 );	
+	
+	return out;
+}
+
 var textureMaps = {};
 var textureSource = {};
 function addModel( jsonModel )
 {
-	console.log(jsonModel);
-	
 	textureSource = jsonModel.textures;
 	
 	var modelsByMaterial = {};
@@ -175,8 +201,16 @@ function addModel( jsonModel )
 		modelsByMaterial[ material ].push( face );
 	}
 	
-	var meshes = [];
+	var transparentFaces = 0;
+	var normalFaces = 0;
 	
+	var meshes = [];
+	var sizeEnc = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+	
+	var transparentBlocks = {};
+	var transparentBlockList = [];
+	
+
 	for ( var x = 0; x < models.length; x++ )
 	{
 		var model = models[x];
@@ -184,32 +218,64 @@ function addModel( jsonModel )
 		for ( var l = 0; l < model.length; l++ )
 		{
 			var faceList = model[l].f;
-			var material = new THREE.MeshLambertMaterial( { alphaTest: model.layer == 'a' || model.layer == 'a' ? 0.5 : 0, transparent : model.layer == 't', map: getTexture( model.textureName ), color: model.color & 0xffffff } );
-
+			var translucent = model.layer == 't';
+			var material = new THREE.MeshLambertMaterial( { alphaTest: model.layer == 'a' ? 0.5 : 0, transparent : translucent, map: getTexture( model.textureName ), color: model.color & 0xffffff } );
+			
+			transparentBlocks = {};
+			transparentBlockList = [];
+			
+			var addLayer = false;
 			var layerGeometry = new THREE.Geometry();
 			layerGeometry.faceVertexUvs[0] = [];
 			
-			var addLayer = false;
-			
 			for ( var ll = 0; ll < faceList.length; ll++ )
 			{
-				var faceGeometry = new THREE.Geometry();
-				faceGeometry.faceVertexUvs[0] = [];
-				
-				var geometry = layerGeometry;
-				if ( material.transparent )
-					geometry = faceGeometry;
-				
 				var face = faceList[ll];
-				var index = geometry.vertices.length;
+
+				var bytesPerCoord = sizeEnc.indexOf( face.charAt( 0 ) );
+				var bPerCoordX = bytesPerCoord >> 4;
+				var bPerCoordY = (bytesPerCoord >> 2) & 3;
+				var bPerCoordZ = bytesPerCoord & 3;
 				
-				var p1 = fromB36( face[0].split( ' ' ) );
-				var p2 = fromB36( face[1].split( ' ' ) );
-				var p3 = fromB36( face[2].split( ' ' ) );
-				var p4 = fromB36( face[3].split( ' ' ) );
+				if ( bPerCoordX == 0 ) throw bPerCoordX+" is not a valid x size";
+				if ( bPerCoordY == 0 ) throw bPerCoordY+" is not a valid y size";
+				if ( bPerCoordZ == 0 ) throw bPerCoordZ+" is not a valid z size";
+				
+				var rIndex = [1];
+				var p1 = readVertData( face, rIndex, bPerCoordX, bPerCoordY, bPerCoordZ );
+				var p2 = readVertData( face, rIndex, bPerCoordX, bPerCoordY, bPerCoordZ );
+				var p3 = readVertData( face, rIndex, bPerCoordX, bPerCoordY, bPerCoordZ );
+				var p4 = readVertData( face, rIndex, bPerCoordX, bPerCoordY, bPerCoordZ );
 				
 				var uvA = [];
 				var uvB = [];
+
+				var geometry = layerGeometry;
+				
+				if ( translucent )
+				{
+					var key = ( p1[0] / 16 ).toFixed(0) + '-' + ( p1[1] / 16 ).toFixed(0) + '-' + ( p1[2] / 16 ).toFixed(0);
+					var faceGeometry = transparentBlocks[ key ];
+					
+					if ( ! faceGeometry )
+					{
+						var faceGeometry = new THREE.Geometry();
+						faceGeometry.faceVertexUvs[0] = [];
+						
+						transparentBlocks[ key ] = faceGeometry;
+						transparentBlockList.push( key );
+					}
+					
+					geometry = faceGeometry;
+					++transparentFaces;
+				}
+				else
+				{
+					++normalFaces;
+					addLayer = true;
+				}
+				
+				var index = geometry.vertices.length;
 				
 				geometry.vertices.push(
 					asVert( p1[0], p1[1], p1[2] ),
@@ -235,22 +301,6 @@ function addModel( jsonModel )
 				
 				geometry.faces.push( new THREE.Face3( index, index + 1, index + 2 ) );
 				geometry.faces.push( new THREE.Face3( index, index + 2, index + 3 ) );
-
-				if ( geometry == faceGeometry )
-				{
-					faceGeometry.computeFaceNormals();
-					faceGeometry.computeBoundingSphere();
-					faceGeometry.computeBoundingBox();
-					
-					var adjustment = adjustGeometry( faceGeometry );
-					var mesh = new THREE.Mesh( faceGeometry, material );
-					mesh.adjustmentX = adjustment.x;
-					mesh.adjustmentY = adjustment.y;
-					mesh.adjustmentZ = adjustment.z;
-					meshes.push( mesh );
-				}
-				else
-					addLayer = true;
 			}
 			
 			if ( addLayer )
@@ -264,24 +314,37 @@ function addModel( jsonModel )
 				mesh.adjustmentX = adjustment.x;
 				mesh.adjustmentY = adjustment.y;
 				mesh.adjustmentZ = adjustment.z;
-				
-				mesh.castShadow = true;
-				mesh.receiveShadow = false;
-				
 				meshes.push( mesh );
 			}
+			
+			for ( var j = 0; j < transparentBlockList.length; ++j )
+			{
+				var faceGeometry = transparentBlocks[ transparentBlockList[ j ] ];
+				
+				faceGeometry.computeFaceNormals();
+				faceGeometry.computeBoundingSphere();
+				faceGeometry.computeBoundingBox();
+				
+				var adjustment = adjustGeometry( faceGeometry );
+				var mesh = new THREE.Mesh( faceGeometry, material );
+				mesh.adjustmentX = adjustment.x;
+				mesh.adjustmentY = adjustment.y;
+				mesh.adjustmentZ = adjustment.z;
+				meshes.push( mesh );
+			}
+			
 		}
-		
 	}
 	
 	for ( var x = 0; x < meshes.length; ++x )
 	{
-		var mesh = meshes[x];
-		
+		var mesh = meshes[x];		
 		mesh.position.set( -(maxX - minX) / 2 + mesh.adjustmentX, -(maxY - minY) / 2 + mesh.adjustmentY, -(maxZ - minZ) / 2 + mesh.adjustmentZ );
 		scene.add( mesh );
 	}
-	
+
+	console.log( "transparentFaces: " + transparentFaces );
+	console.log( "normalFaces: " + normalFaces );
 }
 
 function fromB36( arr )
