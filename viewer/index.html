@@ -23,6 +23,7 @@
 <script src="js/zlib.js"></script>
 <script src="js/gzip.js"></script>
 <script src="js/png.js"></script>
+<script src="js/shareformatreader.js"></script>
 
 <script>
 
@@ -36,7 +37,7 @@ var windowHalfX = window.innerWidth / 2;
 var windowHalfY = window.innerHeight / 2;
 var jsonModel = {};
 
-var tests = window.location.hash ? [ window.location.hash.substr(1) ] : [ 'http://i.imgur.com/XQA6Xvx.png', 'http://i.imgur.com/4ma320I.png', 'http://i.imgur.com/daQYJI3.png' ];
+var tests = window.location.hash ? [ window.location.hash.substr(1) ] : [ 'tests/test.cbs' ];
 var randomModel = tests[Math.floor(Math.random()*tests.length)];
 
 function Utf8ArrayToStr(array) {
@@ -188,7 +189,7 @@ function deflateAndLoad( gzipData )
 	try
 	{
 		var binaryInflated = pako.inflate( gzipData );
-		var jsonData = Utf8ArrayToStr(binaryInflated);
+		//var jsonData = Utf8ArrayToStr(binaryInflated);
 	}
 	catch( e )
 	{
@@ -199,14 +200,17 @@ function deflateAndLoad( gzipData )
 
 	try
 	{
-		jsonModel = JSON.parse( jsonData );
+		var reader = new shareformatreader(binaryInflated);
+		var jsonModel = reader.readModel();
+		
+		//jsonModel = JSON.parse( jsonData );
 		if ( jsonModel == null || jsonModel == false ) throw {};
 	}
 	catch( e )
 	{
-		console.log(jsonData);
+		console.log(binaryInflated);
 		console.log(e);
-		document.body.innerHTML = '<p>Model was not valid json.</p>';
+		document.body.innerHTML = '<p>Model was not valid.</p>';
 		return;
 	}
 	
@@ -287,7 +291,7 @@ function addModel( jsonModel )
 			var list = [];
 			list.textureName = jsonModel.materials[ material ][2];
 			list.layer = jsonModel.materials[ material ][0];
-			list.color = parseInt(jsonModel.materials[ material ][1],16);
+			list.color = jsonModel.materials[ material ][1];
 			models.push( list );
 			modelsByMaterial[ material ] = list;
 		}
@@ -325,21 +329,11 @@ function addModel( jsonModel )
 			for ( var ll = 0; ll < faceList.length; ll++ )
 			{
 				var face = faceList[ll];
-
-				var bytesPerCoord = sizeEnc.indexOf( face.charAt( 0 ) );
-				var bPerCoordX = bytesPerCoord >> 4;
-				var bPerCoordY = (bytesPerCoord >> 2) & 3;
-				var bPerCoordZ = bytesPerCoord & 3;
 				
-				if ( bPerCoordX == 0 ) throw bPerCoordX+" is not a valid x size";
-				if ( bPerCoordY == 0 ) throw bPerCoordY+" is not a valid y size";
-				if ( bPerCoordZ == 0 ) throw bPerCoordZ+" is not a valid z size";
-				
-				var rIndex = [1];
-				var p1 = readVertData( face, rIndex, bPerCoordX, bPerCoordY, bPerCoordZ );
-				var p2 = readVertData( face, rIndex, bPerCoordX, bPerCoordY, bPerCoordZ );
-				var p3 = readVertData( face, rIndex, bPerCoordX, bPerCoordY, bPerCoordZ );
-				var p4 = readVertData( face, rIndex, bPerCoordX, bPerCoordY, bPerCoordZ );
+				var p1 = face[0];
+				var p2 = face[1];
+				var p3 = face[2];
+				var p4 = face[3];
 				
 				var uvA = [];
 				var uvB = [];
@@ -488,8 +482,9 @@ function getTexture( id )
 	return textureMaps[ id ];
 }
 
-function loadTexture( dataURL )
+function loadTexture( png )
 {
+	var dataURL = 'data:image/png;base64,' + encode64( png );
 	var image = document.createElement( 'img' );
 	var texture = new THREE.Texture( image );
 	image.onload = function()  { texture.needsUpdate = true; };
