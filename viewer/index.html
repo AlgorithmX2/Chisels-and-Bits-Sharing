@@ -134,73 +134,34 @@ function imageDecode( pixelbytes )
 	return out;
 }
 
-if ( randomModel.indexOf( ".png" ) != -1 )
+if ( randomModel.indexOf( 'http://' ) == -1 )
 {
-	if ( randomModel.indexOf( 'http://' ) == -1 )
+	if (location.protocol === 'https:') {
+		randomModel = 'https://i.imgur.com/' + randomModel;
+	} else {
+		randomModel = 'http://i.imgur.com/' + randomModel;
+	}
+}
+
+PNG.load( randomModel + '.png', null, function( png ) {
+	
+	try
 	{
-		if (location.protocol === 'https:') {
-			randomModel = 'https://i.imgur.com/' + randomModel;
-		} else {
-			randomModel = 'http://i.imgur.com/' + randomModel;
-		}
+		var gzipData = imageDecode( png.decodePixels() );
+		imageurl = randomModel.replace( 'i.imgur.com', 'imgur.com' );
+		imageurl = randomModel.replace( '.png', '' );
+		$('#imageurl').html( 'View screenshot: <a target="_blank" href="' + imageurl + '">' + imageurl + '</a>');
+	}
+	catch( e )
+	{
+		console.log(e);
+		document.body.innerHTML = '<p>Model was not validly encoded into image.</p>';
+		return;
 	}
 	
-	PNG.load( randomModel, null, function( png ) {
-		
-		try
-		{
-			var gzipData = imageDecode( png.decodePixels() );
-			imageurl = randomModel.replace( 'i.imgur.com', 'imgur.com' );
-			imageurl = randomModel.replace( '.png', '' );
-			$('#imageurl').html( 'View screenshot: <a target="_blank" href="' + imageurl + '">' + imageurl + '</a>');
-		}
-		catch( e )
-		{
-			console.log(e);
-			document.body.innerHTML = '<p>Model was not validly encoded into image.</p>';
-			return;
-		}
-		
-		deflateAndLoad(gzipData);
-		
-	} );
-}
-else
-{
-	$.ajax( randomModel, { crossDomain: true, dataType: "binary", processData: false } ).complete( function( ro ) {
-		
-		if ( ro.status != 200 )
-		{
-			document.body.innerHTML = '<p>Unable to load the model specified.</p>';
-		}
-		else
-		{
-			try
-			{
-				var gzipData = decode64( ro.responseText );
-			}
-			catch( e )
-			{
-				try
-				{
-					var data, png;
-					data = new Uint8Array(ro.response || ro.mozResponseArrayBuffer);
-					var png = new PNG(data);
-					
-					var gzipData = imageDecode( png.decodePixels() );
-				}
-				catch( e )
-				{
-					console.log(e);
-					document.body.innerHTML = '<p>Model was not valid base64.</p>';
-					return;
-				}
-			}
-			
-			deflateAndLoad(gzipData);
-		}
-	} );
-}
+	deflateAndLoad(gzipData);
+	
+} );
 
 function deflateAndLoad( gzipData )
 {
