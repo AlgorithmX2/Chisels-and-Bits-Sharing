@@ -10,6 +10,12 @@
 	html,body { margin:0px; }
 	p { margin: 30px; }
 	
+	#imageurl { position:absolute; color:white; right:25px; bottom:25px; border-radius:15px; padding:10px; background:rgba(124,124,124,0.25); }
+	#imageurl a:active, 
+	#imageurl a:visited, 
+	#imageurl a:hover, 
+	#imageurl a:link { color:white; }
+	
 </style>
 
 </head>
@@ -25,6 +31,8 @@
 <script src="js/png.js"></script>
 <script src="js/shareformatreader.js"></script>
 
+<div id="imageurl"></div>
+
 <script>
 
 var container;
@@ -37,8 +45,10 @@ var windowHalfX = window.innerWidth / 2;
 var windowHalfY = window.innerHeight / 2;
 var jsonModel = {};
 
-var tests = window.location.hash ? [ window.location.hash.substr(1) ] : [ 'tests/test.cbs' ];
+var tests = window.location.hash ? [ window.location.hash.substr(1) ] : [ 'mOsVNpm.png', 'laqg9n2.png', 'Lf7rjQf.png', 'cIsq4Js.png' ];
 var randomModel = tests[Math.floor(Math.random()*tests.length)];
+
+var imageurl = '';
 
 function Utf8ArrayToStr(array) {
     var out, i, len, c;
@@ -84,11 +94,16 @@ function readByte( readerState )
 		
 		readerState[2]++;
 		
-		if ( alpha != 0 )
+		if ( alpha > 128 )
 		{
+			var p1 = readerState[0][ readerState[1] + 0 ];
+			var p2 = readerState[0][ readerState[1] + 1 ];
+			var p3 = readerState[0][ readerState[1] + 2 ];
+			
+			currentValue = ( ( alpha & 3 ) << 6 ) | ( ( p1 & 3 ) << 4 ) | ( ( p2 & 3 ) << 2 ) | ( ( p3 & 3 ) );
+			
 			readerState[1] += 4;
 			readerState[2] = 0;
-			continue;
 		}
 		else if ( readerState[2] >= 3 )
 		{
@@ -132,9 +147,12 @@ if ( randomModel.indexOf( ".png" ) != -1 )
 	
 	PNG.load( randomModel, null, function( png ) {
 		
-		var gzipData = imageDecode( png.decodePixels() );
 		try
 		{
+			var gzipData = imageDecode( png.decodePixels() );
+			imageurl = randomModel.replace( 'i.imgur.com', 'imgur.com' );
+			imageurl = randomModel.replace( '.png', '' );
+			$('#imageurl').html( 'View screenshot: <a target="_blank" href="' + imageurl + '">' + imageurl + '</a>');
 		}
 		catch( e )
 		{
@@ -194,7 +212,7 @@ function deflateAndLoad( gzipData )
 	catch( e )
 	{
 		console.log(e);
-		document.body.innerHTML = '<p>Model was not gziped.</p>';
+		document.body.innerHTML = '<p>Could not load model, format appears to be wrong.. <a href="./">View Tests?</a></p>';
 		return;
 	}
 
