@@ -147,25 +147,32 @@ if ( randomModel.indexOf( 'http://' ) == -1 )
 	}
 }
 
-PNG.load( randomModel + '.png', null, function( png ) {
-	
-	try
-	{
-		var gzipData = imageDecode( png.decodePixels() );
-		imageurl = randomModel.replace( 'i.imgur.com', 'imgur.com' );
-		imageurl = randomModel.replace( '.png', '' );
-		$('#imageurl').html( '<div class="l1">WIP Chisels & Bits Viewer - <a href="about.html">Whats this?</a></div><div class="l2">View screenshot: <a target="_blank" href="' + imageurl + '">' + imageurl + '</a></div>');
-	}
-	catch( e )
-	{
-		console.log(e);
-		document.body.innerHTML = '<p>Model was not validly encoded into image.</p>';
-		return;
-	}
-	
-	deflateAndLoad(gzipData);
-	
-} );
+if ( Detector.webgl )
+{
+	PNG.load( randomModel + '.png', null, function( png ) {
+		
+		try
+		{
+			var gzipData = imageDecode( png.decodePixels() );
+			imageurl = randomModel.replace( 'i.imgur.com', 'imgur.com' );
+			imageurl = randomModel.replace( '.png', '' );
+			$('#imageurl').html( '<div class="l1">WIP Chisels & Bits Viewer - <a href="about.html">Whats this?</a></div><div class="l2">View screenshot: <a target="_blank" href="' + imageurl + '">' + imageurl + '</a></div>');
+		}
+		catch( e )
+		{
+			console.log(e);
+			document.body.innerHTML = '<p>Model was not validly encoded into image.</p>';
+			return;
+		}
+		
+		deflateAndLoad(gzipData);
+		
+	} );
+}
+else
+{
+	document.body.appendChild( Detector.getWebGLErrorMessage() );
+}
 
 function deflateAndLoad( gzipData )
 {
