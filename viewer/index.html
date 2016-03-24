@@ -20,6 +20,51 @@
 	.l1 { text-align:c`enter; font-size:14px; }
 	.l2 { text-align:center; font-size:11px; }
 	
+	#loadingScreen {
+		z-index:999;
+		position:absolute;
+		width:100%;
+		height:100%;
+		top:0px;
+		left:0px;
+		background:black;
+	}
+	
+	#loading {
+		font-size:28px;
+		position:absolute;
+		left:50%;
+		top:50%;
+		margin-left:-150px;
+		margin-top:-45px;
+		color:white;
+		width:300px;
+		height:90px;
+		border-radius:15px; padding:10px; background:rgba(124,124,124,0.25);
+	}
+	
+	#w0, #w1, #w2, #w3, #w4, #w5 {
+		line-height:20px;
+		width:20px;
+		margin-top:-10px;
+		margin-left:-10px;
+		text-align:center;
+	}
+	
+	#w0 { font-size: 10px; position:absolute; left: 5px; top: 8.6602540378443864676372317075294px; }
+	#w1 { font-size: 12px; position:absolute; left: -5px; top: 8.6602540378443864676372317075294px; }
+	#w2 { font-size: 16px; position:absolute; left: -10px; top: 0px; }
+	#w3 { font-size: 20px; position:absolute; left: -5px; top: -8.6602540378443864676372317075294px; }
+	#w4 { font-size: 16px; position:absolute; left: 5px; top: -8.6602540378443864676372317075294px; }
+	#w5 { font-size: 12px; position:absolute; left: 10px; top: 0px; }
+	
+	#wheel{
+		 position:absolute;
+		 top:40%;
+		 left:82%;
+	}
+	
+	
 </style>
 
 </head>
@@ -34,6 +79,20 @@
 <script src="js/gzip.js"></script>
 <script src="js/png.js"></script>
 <script src="js/shareformatreader.js"></script>
+
+<div id="loadingScreen">
+	<div id="loading">
+		<p>Loading model</p>
+		<div id="wheel">
+			<div id="w0">.</div>
+			<div id="w1">.</div>
+			<div id="w2">.</div>
+			<div id="w3">.</div>
+			<div id="w4">.</div>
+			<div id="w5">.</div>
+		</div>
+	</div>
+</div>
 
 <div id="imageurl"></div>
 
@@ -53,6 +112,36 @@ var tests = window.location.hash ? [ window.location.hash.substr(1) ] : [ 'mOsVN
 var randomModel = tests[Math.floor(Math.random()*tests.length)];
 
 var imageurl = '';
+var spin = 0;
+
+function getWave( offset, angle )
+{
+	var out = Math.sin( Math.PI * ( angle / 6 ) + offset );
+	return 10 + 40 * Math.abs( out );
+}
+
+var loadingAnimation = setInterval( function() {
+	spin += 0.1;
+	
+	jQuery('#w0').css( 'font-size', getWave( spin, 0 ) );
+	jQuery('#w1').css( 'font-size', getWave( spin, 1 ) );
+	jQuery('#w2').css( 'font-size', getWave( spin, 2 ) );
+	jQuery('#w3').css( 'font-size', getWave( spin, 3 ) );
+	jQuery('#w4').css( 'font-size', getWave( spin, 4 ) );
+	jQuery('#w5').css( 'font-size', getWave( spin, 5 ) );
+	
+}, 1000 / 24 );
+
+function killLoading()
+{
+	setTimeout( function() {
+		
+		jQuery('#loadingScreen').fadeOut({ complete: function() {
+			clearInterval( loadingAnimation );
+		} } );
+		
+	}, 20 );
+}
 
 function Utf8ArrayToStr(array) {
     var out, i, len, c;
@@ -138,6 +227,7 @@ function imageDecode( pixelbytes )
 	return out;
 }
 
+
 if ( randomModel.indexOf( 'http://' ) == -1 )
 {
 	if (location.protocol === 'https:') {
@@ -157,9 +247,11 @@ if ( Detector.webgl )
 			imageurl = randomModel.replace( 'i.imgur.com', 'imgur.com' );
 			imageurl = randomModel.replace( '.png', '' );
 			$('#imageurl').html( '<div class="l1">WIP Chisels & Bits Viewer - <a href="about.html">Whats this?</a></div><div class="l2">View screenshot: <a target="_blank" href="' + imageurl + '">' + imageurl + '</a></div>');
+			killLoading();
 		}
 		catch( e )
 		{
+			killLoading();
 			console.log(e);
 			document.body.innerHTML = '<p>Model was not validly encoded into image.</p>';
 			return;
@@ -171,6 +263,8 @@ if ( Detector.webgl )
 }
 else
 {
+	killLoading();
+	jQuery('#imageurl').hide();
 	document.body.appendChild( Detector.getWebGLErrorMessage() );
 }
 
@@ -183,6 +277,7 @@ function deflateAndLoad( gzipData )
 	}
 	catch( e )
 	{
+		killLoading();
 		console.log(e);
 		document.body.innerHTML = '<p>Could not load model, format appears to be wrong.. <a href="./">View Tests?</a></p>';
 		return;
@@ -198,6 +293,7 @@ function deflateAndLoad( gzipData )
 	}
 	catch( e )
 	{
+		killLoading();
 		console.log(binaryInflated);
 		console.log(e);
 		document.body.innerHTML = '<p>Model was not valid.</p>';
