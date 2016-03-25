@@ -74,10 +74,11 @@
 <script src="js/three.js"></script>
 <script src="js/trackballcontrols.js"></script>
 <script src="js/detector.js"></script>
-<script src="js/base64.js"></script>
 <script src="js/zlib.js"></script>
 <script src="js/gzip.js"></script>
 <script src="js/png.js"></script>
+<script src="js/base64.js"></script>
+<script src="js/modelDecode.js"></script>
 <script src="js/shareformatreader.js"></script>
 
 <div id="loadingScreen">
@@ -132,7 +133,7 @@ var loadingAnimation = setInterval( function() {
 	
 }, 1000 / 24 );
 
-function killLoading()
+function killLoading( msg )
 {
 	setTimeout( function() {
 		
@@ -143,91 +144,6 @@ function killLoading()
 	}, 20 );
 }
 
-function Utf8ArrayToStr(array) {
-    var out, i, len, c;
-    var char2, char3;
-
-    out = "";
-    len = array.length;
-    i = 0;
-    while(i < len) {
-    c = array[i++];
-    switch(c >> 4)
-    { 
-      case 0: case 1: case 2: case 3: case 4: case 5: case 6: case 7:
-        // 0xxxxxxx
-        out += String.fromCharCode(c);
-        break;
-      case 12: case 13:
-        // 110x xxxx   10xx xxxx
-        char2 = array[i++];
-        out += String.fromCharCode(((c & 0x1F) << 6) | (char2 & 0x3F));
-        break;
-      case 14:
-        // 1110 xxxx  10xx xxxx  10xx xxxx
-        char2 = array[i++];
-        char3 = array[i++];
-        out += String.fromCharCode(((c & 0x0F) << 12) |
-                       ((char2 & 0x3F) << 6) |
-                       ((char3 & 0x3F) << 0));
-        break;
-    }
-    }
-
-    return out;
-}
-
-function readByte( readerState )
-{
-	// readerState: pixelbytes, index, c
-	do
-	{
-		var currentValue = readerState[0][ readerState[1] + readerState[2] ];
-		var alpha = readerState[0][ readerState[1] + 3 ];	
-		
-		readerState[2]++;
-		
-		if ( alpha > 128 )
-		{
-			var p1 = readerState[0][ readerState[1] + 0 ];
-			var p2 = readerState[0][ readerState[1] + 1 ];
-			var p3 = readerState[0][ readerState[1] + 2 ];
-			
-			currentValue = ( ( alpha & 3 ) << 6 ) | ( ( p1 & 3 ) << 4 ) | ( ( p2 & 3 ) << 2 ) | ( ( p3 & 3 ) );
-			
-			readerState[1] += 4;
-			readerState[2] = 0;
-		}
-		else if ( readerState[2] >= 3 )
-		{
-			readerState[1] += 4;
-			readerState[2] = 0;
-		}
-		
-		break;
-	}
-	while ( true );
-	
-	return currentValue;
-}
-
-function imageDecode( pixelbytes )
-{
-	var readerState = [ pixelbytes, 0, 0 ];
-	
-	var size = readByte( readerState ) << 24;
-	size |= readByte( readerState ) << 16;
-	size |= readByte( readerState ) << 8;
-	size |= readByte( readerState );
-	
-	var out = new Uint8Array(size);
-	for ( var x = 0; x < size; ++x )
-		out[x] = readByte( readerState );
-	
-	return out;
-}
-
-
 if ( randomModel.indexOf( 'http://' ) == -1 )
 {
 	if (location.protocol === 'https:') {
@@ -237,29 +153,60 @@ if ( randomModel.indexOf( 'http://' ) == -1 )
 	}
 }
 
+function loadModel( url )
+{
+	imageurl = url.replace( 'i.imgur.com', 'imgur.com' );
+	imageurl = imageurl.replace( '.png', '' );
+	$('#imageurl').html( '<div class="l1">WIP Chisels & Bits Viewer - <a href="about.html">Whats this?</a></div><div class="l2">View screenshot: <a target="_blank" href="' + imageurl + '">' + imageurl + '</a></div>');
+	
+	var xhr, _this = this;
+	xhr = new XMLHttpRequest;
+	xhr.open("GET", url, true);
+	xhr.responseType = "arraybuffer";
+	xhr.setRequestHeader('Accept','image/*');
+	xhr.onload = function() {
+		var data;
+		data = new Uint8Array(xhr.response || xhr.mozResponseArrayBuffer);
+
+		if (window.Worker)
+		{
+			var myWorker = new Worker("js/worker.js");
+			
+			myWorker.onmessage = function( ev ) {
+				
+				var e = ev.data;
+				
+				if ( e.command == 'model' )
+				{
+					done( e.msg );
+				}
+				
+				else if ( e.command == 'hideloading' )
+				{
+					killLoading();
+				}
+				
+				else if ( e.command == 'error' )
+				{
+					killLoading( e.msg );
+				}
+				
+			};
+			
+			myWorker.postMessage( data );
+		}
+		else
+		{
+			processPNG(data);
+		}
+
+	};
+	return xhr.send(null);
+}
+
 if ( Detector.webgl )
 {
-	PNG.load( randomModel + '.png', null, function( png ) {
-		
-		try
-		{
-			var gzipData = imageDecode( png.decodePixels() );
-			imageurl = randomModel.replace( 'i.imgur.com', 'imgur.com' );
-			imageurl = randomModel.replace( '.png', '' );
-			$('#imageurl').html( '<div class="l1">WIP Chisels & Bits Viewer - <a href="about.html">Whats this?</a></div><div class="l2">View screenshot: <a target="_blank" href="' + imageurl + '">' + imageurl + '</a></div>');
-			killLoading();
-		}
-		catch( e )
-		{
-			killLoading();
-			console.log(e);
-			document.body.innerHTML = '<p>Model was not validly encoded into image.</p>';
-			return;
-		}
-		
-		deflateAndLoad(gzipData);
-		
-	} );
+	loadModel( randomModel + '.png' );
 }
 else
 {
@@ -268,42 +215,12 @@ else
 	document.body.appendChild( Detector.getWebGLErrorMessage() );
 }
 
-function deflateAndLoad( gzipData )
+function done( jsonModel )
 {
 	try
 	{
-		var binaryInflated = pako.inflate( gzipData );
-		//var jsonData = Utf8ArrayToStr(binaryInflated);
-	}
-	catch( e )
-	{
-		killLoading();
-		console.log(e);
-		document.body.innerHTML = '<p>Could not load model, format appears to be wrong.. <a href="./">View Tests?</a></p>';
-		return;
-	}
-
-	try
-	{
-		var reader = new shareformatreader(binaryInflated);
-		var jsonModel = reader.readModel();
-		
-		//jsonModel = JSON.parse( jsonData );
-		if ( jsonModel == null || jsonModel == false ) throw {};
-	}
-	catch( e )
-	{
-		killLoading();
-		console.log(binaryInflated);
-		console.log(e);
-		document.body.innerHTML = '<p>Model was not valid.</p>';
-		return;
-	}
-	
-	try
-	{
 		init();
-		
+		killLoading();
 		addModel( jsonModel );
 		animate();
 	}
@@ -337,27 +254,6 @@ function adjustGeometry( geometry )
 	return c;
 }
 
-function snagPos( data, index, size )
-{
-	var out = data.substr( index[0], size );
-	index[0]+=size;
-	
-	return parseInt( out, 36 );
-}
-
-function readVertData( data, index, x,y,z )
-{
-	var out = [ 0, 0, 0, 0, 0 ]; // def
-
-	out[0] = snagPos( data, index, x );
-	out[1] = snagPos( data, index, y );
-	out[2] = snagPos( data, index, z );
-	out[3] = snagPos( data, index, 1 );	
-	out[4] = snagPos( data, index, 1 );	
-	
-	return out;
-}
-
 var textureMaps = {};
 var textureSource = {};
 function addModel( jsonModel )
@@ -389,12 +285,10 @@ function addModel( jsonModel )
 	var normalFaces = 0;
 	
 	var meshes = [];
-	var sizeEnc = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 	
 	var transparentBlocks = {};
 	var transparentBlockList = [];
 	
-
 	for ( var x = 0; x < models.length; x++ )
 	{
 		var model = models[x];
@@ -519,16 +413,6 @@ function addModel( jsonModel )
 
 	console.log( "transparentFaces: " + transparentFaces );
 	console.log( "normalFaces: " + normalFaces );
-}
-
-function fromB36( arr )
-{
-	for ( var x = 0; x < arr.length; ++x )
-	{
-		arr[x] = parseInt( arr[x], 36 );
-	}
-	
-	return arr;
 }
 
 var minX=1000, minY=1000, minZ=1000;
