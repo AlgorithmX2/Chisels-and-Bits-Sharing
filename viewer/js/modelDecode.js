@@ -62,7 +62,6 @@ function processPNG( pngBytes )
 	catch( e )
 	{
 		killLoading('<p>Model was not validly encoded into image.</p>');
-		console.log(e);
 		return;
 	}
 }
@@ -75,9 +74,7 @@ function deflateAndLoad( gzipData )
 	}
 	catch( e )
 	{
-		killLoading();
-		console.log(e);
-		document.body.innerHTML = '<p>Could not load model, format appears to be wrong.. <a href="./">View Tests?</a></p>';
+		killLoading('<p>Could not load model, format appears to be wrong.. <a href="./">View Tests?</a></p>');
 		return;
 	}
 

@@ -20,6 +20,14 @@
 	.l1 { text-align:c`enter; font-size:14px; }
 	.l2 { text-align:center; font-size:11px; }
 	
+	#loadingScreen h1 { margin-top: 0px; }
+	#loadingScreen a:link,
+	#loadingScreen a:visited,
+	#loadingScreen a:active,
+	#loadingScreen a:hover {
+		color:white;
+	}
+	
 	#loadingScreen {
 		z-index:999;
 		position:absolute;
@@ -135,6 +143,13 @@ var loadingAnimation = setInterval( function() {
 
 function killLoading( msg )
 {
+	if ( typeof msg === 'string' )
+	{
+		jQuery('#loading').css( { fontSize:'14px', padding:30, height: 'auto', width:500, marginLeft: -250 } );
+		jQuery('#loading').html('<h1>Model Loading Error</h1>' + msg);
+		return;
+	}
+	
 	setTimeout( function() {
 		
 		jQuery('#loadingScreen').fadeOut({ complete: function() {
@@ -188,6 +203,7 @@ function loadModel( url )
 				
 				else if ( e.command == 'error' )
 				{
+					jQuery('#imageurl').hide();
 					killLoading( e.msg );
 				}
 				
@@ -211,7 +227,6 @@ if ( Detector.webgl )
 else
 {
 	killLoading();
-	jQuery('#imageurl').hide();
 	document.body.appendChild( Detector.getWebGLErrorMessage() );
 }
 
