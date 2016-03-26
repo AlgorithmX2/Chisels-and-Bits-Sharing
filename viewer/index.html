@@ -549,6 +549,9 @@ function render()
 	var left = new THREE.Vector3();
 	left.crossVectors( up, forward );
 	
+	up = new THREE.Vector3();
+	up.crossVectors( forward, left );
+	
 	var lPos = [
 		camera.position.x + up.x * 10 + left.x * 10,
 		camera.position.y + up.y * 10 + left.y * 10,
