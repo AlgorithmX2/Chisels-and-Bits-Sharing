@@ -43,6 +43,9 @@ function imageDecode( pixelbytes )
 	size |= readByte( readerState ) << 8;
 	size |= readByte( readerState );
 	
+	if ( size > pixelbytes.length )
+		throw "Not enough Data.";
+	
 	var out = new Uint8Array(size);
 	for ( var x = 0; x < size; ++x )
 		out[x] = readByte( readerState );

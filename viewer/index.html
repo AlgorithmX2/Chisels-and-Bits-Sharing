@@ -80,7 +80,7 @@
 
 <script src="js/jquery.js"></script>
 <script src="js/three.js"></script>
-<script src="js/trackballcontrols.js"></script>
+<script src="js/orbitcontrols.js"></script>
 <script src="js/detector.js"></script>
 <script src="js/zlib.js"></script>
 <script src="js/gzip.js"></script>
@@ -117,7 +117,7 @@ var windowHalfX = window.innerWidth / 2;
 var windowHalfY = window.innerHeight / 2;
 var jsonModel = {};
 
-var tests = window.location.hash ? [ window.location.hash.substr(1) ] : [ 'mOsVNpm.png', 'laqg9n2.png', 'Lf7rjQf.png', 'cIsq4Js.png' ];
+var tests = window.location.hash ? [ window.location.hash.substr(1) ] : [ 'mOsVNpm.png', 'laqg9n2.png', 'RnfBEWk.png', 'cIsq4Js.png' ];
 var randomModel = tests[Math.floor(Math.random()*tests.length)];
 
 var imageurl = '';
@@ -491,14 +491,7 @@ function init() {
 	camera.position.y = 14;
 	camera.position.x = 14;
 
-	controls = new THREE.TrackballControls( camera );
-	controls.rotateSpeed = 5.0;
-	controls.zoomSpeed = 5;
-	controls.panSpeed = 2;
-	controls.noZoom = false;
-	controls.noPan = false;
-	controls.staticMoving = true;
-	controls.dynamicDampingFactor = 0.3;
+	controls = new THREE.OrbitControls( camera, container );
 	
 	scene = new THREE.Scene();
 	var ambient = new THREE.AmbientLight( 0x303030 );
