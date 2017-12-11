@@ -118,8 +118,8 @@ var windowHalfX = window.innerWidth / 2;
 var windowHalfY = window.innerHeight / 2;
 var jsonModel = {};
 
-var tests = window.location.hash ? [ window.location.hash.substr(1) ] : [ 'mOsVNpm.png', 'laqg9n2.png', 'RnfBEWk.png', 'cIsq4Js.png' ];
-var randomModel = tests[Math.floor(Math.random()*tests.length)];
+// window.location.hash.substr(1)
+var tests = window.location.hash ? [] : [ 'mOsVNpm.png', 'laqg9n2.png', 'RnfBEWk.png', 'cIsq4Js.png' ];
 
 var imageurl = '';
 var spin = 0;
@@ -158,15 +158,6 @@ function killLoading( msg )
 		} } );
 		
 	}, 20 );
-}
-
-if ( randomModel.indexOf( 'http://' ) == -1 )
-{
-	if (location.protocol === 'https:') {
-		randomModel = 'https://i.imgur.com/' + randomModel;
-	} else {
-		randomModel = 'http://i.imgur.com/' + randomModel;
-	}
 }
 
 function loadModel( url )
@@ -223,7 +214,54 @@ function loadModel( url )
 
 if ( Detector.webgl )
 {
-	loadModel( randomModel + '.png' );
+	if ( tests.length > 0 )
+	{
+		var randomModel = tests[Math.floor(Math.random()*tests.length)];
+		if ( randomModel.indexOf( 'http://' ) == -1 )
+		{
+			if (location.protocol === 'https:') {
+				randomModel = 'https://i.imgur.com/' + randomModel;
+			} else {
+				randomModel = 'http://i.imgur.com/' + randomModel;
+			}
+		}
+			
+		loadModel( randomModel + '.png' );
+	}
+	else if ( window.location.hash.length > 1 )
+	{
+		var hashCode = window.location.hash.substr(1);
+		
+		window.loadcallback = function( data ) {
+			var d = /\[C\&B\]\((.+)\)\[C\&B\]/.exec( data );
+			if ( d )
+			{
+				var imageurl = 'https://pastebin.com/' + hashCode;
+				$('#imageurl').html( '<div class="l1">WIP Chisels & Bits Viewer - <a href="about.html">Whats this?</a></div><div class="l2">View data: <a target="_blank" href="' + imageurl + '">' + imageurl + '</a></div>');
+				deflateAndLoad( decode64( d[1] ) );
+			}
+			else
+			{
+				jQuery('#imageurl').hide();
+				killLoading( "Unable to find data..." );
+			}
+		};
+		
+		var script = $('<script>');
+		
+		script.on('error',function() {
+			jQuery('#imageurl').hide();
+			killLoading( "Unable to find data..." );
+		});
+		
+		script.on('load',function() {
+			console.log('data loaded?');
+		});
+		
+		script.prop('src','https://pastebin.com/raw/'+hashCode);
+		
+		$(document.body).append( script );
+	}
 }
 else
 {
